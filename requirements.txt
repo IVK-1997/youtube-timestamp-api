@@ -1,6 +1,5 @@
-]fastapi
+fastapi
 uvicorn
-yt-dlp
 google-genai
-python-multipart
+yt-dlp
 pydantic
