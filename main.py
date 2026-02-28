@@ -4,11 +4,11 @@ import time
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from google import genai
-from google.genai import types
+from google.genai import Client
 
 app = FastAPI()
 
-client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+client = Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 
 class AskRequest(BaseModel):
