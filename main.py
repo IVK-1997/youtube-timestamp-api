@@ -37,37 +37,29 @@ def extract_video_id(url: str) -> str:
     raise ValueError("Invalid YouTube URL")
 
 
-def normalize_timestamp(seconds: float) -> str:
-    seconds = int(seconds)
-    h = seconds // 3600
-    m = (seconds % 3600) // 60
-    s = seconds % 60
-    return f"{h:02}:{m:02}:{s:02}"
-
-
 @app.post("/ask", response_model=AskResponse)
 def ask(request: AskRequest):
     try:
         video_id = extract_video_id(request.video_url)
 
-        transcript = YouTubeTranscriptApi.get_transcript(video_id)
+        transcript_data = YouTubeTranscriptApi().fetch(video_id)
 
         transcript_text = ""
-        for entry in transcript:
-            transcript_text += f"{entry['start']}: {entry['text']}\n"
+        for entry in transcript_data:
+            transcript_text += f"{entry.start}: {entry.text}\n"
 
         response = client.models.generate_content(
             model="gemini-2.5-flash",
             contents=f"""
-            Here is a YouTube transcript with timestamps in seconds.
+Here is a YouTube transcript with timestamps in seconds.
 
-            Find the first timestamp where the topic '{request.topic}' appears.
+Find the first timestamp where the topic '{request.topic}' appears.
 
-            Return ONLY the timestamp in HH:MM:SS format.
+Return ONLY the timestamp in HH:MM:SS format.
 
-            Transcript:
-            {transcript_text}
-            """
+Transcript:
+{transcript_text}
+"""
         )
 
         timestamp = response.text.strip()
