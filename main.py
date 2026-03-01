@@ -3,7 +3,6 @@ import subprocess
 import time
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from google import genai
 from google.genai import Client
 
 app = FastAPI()
@@ -79,20 +78,10 @@ def ask(request: AskRequest):
                 uploaded_file,
                 f"Find the first timestamp where '{request.topic}' is spoken. "
                 f"Return ONLY the timestamp in HH:MM:SS format."
-            ],
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema={
-                    "type": "object",
-                    "properties": {
-                        "timestamp": {"type": "string"}
-                    },
-                    "required": ["timestamp"]
-                }
-            )
+            ]
         )
 
-        timestamp = normalize_timestamp(response.parsed["timestamp"])
+        timestamp = normalize_timestamp(response.text.strip())
 
         return {
             "timestamp": timestamp,
