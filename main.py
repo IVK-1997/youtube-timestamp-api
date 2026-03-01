@@ -1,14 +1,12 @@
 import os
-import subprocess
-import time
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from google.genai import Client
+from youtube_transcript_api import YouTubeTranscriptApi
 
 app = FastAPI()
 
-# CORS for grader (browser-based requests)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -31,72 +29,48 @@ class AskResponse(BaseModel):
     topic: str
 
 
-def download_audio(video_url: str) -> str:
-    command = [
-        "yt-dlp",
-        "-f", "bestaudio",
-        "-o", "audio.%(ext)s",
-        video_url,
-    ]
-
-    subprocess.run(command, check=True)
-
-    # Find downloaded file dynamically
-    for file in os.listdir():
-        if file.startswith("audio."):
-            return file
-
-    raise Exception("Audio file not found")
+def extract_video_id(url: str) -> str:
+    if "youtu.be/" in url:
+        return url.split("youtu.be/")[1]
+    if "watch?v=" in url:
+        return url.split("watch?v=")[1].split("&")[0]
+    raise ValueError("Invalid YouTube URL")
 
 
-def upload_and_wait(file_path: str):
-    uploaded = client.files.upload(file=file_path)
-
-    while True:
-        file_info = client.files.get(name=uploaded.name)
-
-        if file_info.state == "ACTIVE":
-            return uploaded
-
-        if file_info.state == "FAILED":
-            raise Exception("File processing failed")
-
-        time.sleep(2)
-
-
-def normalize_timestamp(ts: str) -> str:
-    parts = ts.strip().split(":")
-
-    if len(parts) == 3:
-        return ts
-
-    if len(parts) == 2:
-        return "00:" + ts
-
-    if len(parts) == 1:
-        return f"00:00:{parts[0]}"
-
-    raise ValueError("Invalid timestamp format")
+def normalize_timestamp(seconds: float) -> str:
+    seconds = int(seconds)
+    h = seconds // 3600
+    m = (seconds % 3600) // 60
+    s = seconds % 60
+    return f"{h:02}:{m:02}:{s:02}"
 
 
 @app.post("/ask", response_model=AskResponse)
 def ask(request: AskRequest):
-    audio_path = None
-
     try:
-        audio_path = download_audio(request.video_url)
-        uploaded_file = upload_and_wait(audio_path)
+        video_id = extract_video_id(request.video_url)
+
+        transcript = YouTubeTranscriptApi.get_transcript(video_id)
+
+        transcript_text = ""
+        for entry in transcript:
+            transcript_text += f"{entry['start']}: {entry['text']}\n"
 
         response = client.models.generate_content(
             model="gemini-2.5-flash",
-            contents=[
-                uploaded_file,
-                f"Find the first timestamp where '{request.topic}' is spoken. "
-                f"Return ONLY the timestamp in HH:MM:SS format."
-            ]
+            contents=f"""
+            Here is a YouTube transcript with timestamps in seconds.
+
+            Find the first timestamp where the topic '{request.topic}' appears.
+
+            Return ONLY the timestamp in HH:MM:SS format.
+
+            Transcript:
+            {transcript_text}
+            """
         )
 
-        timestamp = normalize_timestamp(response.text.strip())
+        timestamp = response.text.strip()
 
         return {
             "timestamp": timestamp,
@@ -106,7 +80,3 @@ def ask(request: AskRequest):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-    finally:
-        if audio_path and os.path.exists(audio_path):
-            os.remove(audio_path)
