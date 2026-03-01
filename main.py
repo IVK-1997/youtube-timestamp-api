@@ -8,7 +8,7 @@ from google.genai import Client
 
 app = FastAPI()
 
-# ✅ CORS (Required for grader browser requests)
+# CORS for grader (browser-based requests)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -35,13 +35,18 @@ def download_audio(video_url: str) -> str:
     command = [
         "yt-dlp",
         "-f", "bestaudio",
-        "-x",
-        "--audio-format", "mp3",
         "-o", "audio.%(ext)s",
         video_url,
     ]
+
     subprocess.run(command, check=True)
-    return "audio.mp3"
+
+    # Find downloaded file dynamically
+    for file in os.listdir():
+        if file.startswith("audio."):
+            return file
+
+    raise Exception("Audio file not found")
 
 
 def upload_and_wait(file_path: str):
