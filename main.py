@@ -2,10 +2,20 @@ import os
 import subprocess
 import time
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from google.genai import Client
 
 app = FastAPI()
+
+# ✅ CORS (Required for grader browser requests)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 client = Client(api_key=os.getenv("GEMINI_API_KEY"))
 
